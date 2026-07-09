@@ -31,7 +31,6 @@ import ssl
 import subprocess
 import tempfile
 import urllib.request
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -43,6 +42,7 @@ CEVAE_URL = (
 OUTPUT_PATH = "ihdp_covariates.csv"
 
 # Download source file
+
 
 def _download(url, dest):
     """Download ``url`` to ``dest``, working around common SSL issues."""
