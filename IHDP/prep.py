@@ -1,7 +1,12 @@
 """Extract the fixed IHDP covariates + treatment from a CEVAE/NPCI replication.
 
-Source: ihdp_npci_1.csv from
+Downloads ihdp_npci_1.csv from the archived CEVAE repository:
 https://github.com/AMLab-Amsterdam/CEVAE/tree/master/datasets/IHDP/csv
+
+The source file is fetched on the fly rather than bundled in this repo
+to avoid redistributing upstream data and the licensing complexity that
+comes with it. The CEVAE repository is archived (read-only) since
+July 2020, so the URL is stable.
 
 Covariates and treatment are identical across all 1000 CEVAE/NPCI
 replications (only the simulated outcome columns y_factual, y_cfactual,
@@ -13,16 +18,81 @@ pgmpy/example_datasets HuggingFace repo and loaded via _get_raw_data()
 on every IHDPDataset instantiation, so the assertions below are meant
 to catch a bad extraction (wrong source file, corrupted download,
 upstream format change) before it ships, not just document intent.
+
+Usage:
+    python prep.py
+
+Requirements:
+    numpy, pandas
 """
+
+import os
+import ssl
+import subprocess
+import tempfile
+import urllib.request
+import warnings
 
 import numpy as np
 import pandas as pd
 
-file_path = "ihdp_npci_1.csv"
-output_path = "ihdp_covariates.csv"
+CEVAE_URL = (
+    "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/"
+    "master/datasets/IHDP/csv/ihdp_npci_1.csv"
+)
+OUTPUT_PATH = "ihdp_covariates.csv"
 
-cols = ["treatment", "y_factual", "y_cfactual", "mu0", "mu1"] + [f"x{i}" for i in range(1, 26)]
-df = pd.read_csv(file_path, header=None, names=cols)
+# --- Download source file ---------------------------------------------------
+
+
+def _download(url, dest):
+    """Download ``url`` to ``dest``, working around common SSL issues."""
+    # Try default SSL context first.
+    try:
+        urllib.request.urlretrieve(url, dest)
+        return
+    except urllib.error.URLError:
+        pass
+
+    # Try certifi certificates if available.
+    try:
+        import certifi
+
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+        with opener.open(url) as resp, open(dest, "wb") as f:
+            f.write(resp.read())
+        return
+    except (ImportError, urllib.error.URLError):
+        pass
+
+    # Last resort: fall back to curl (available on macOS/Linux).
+    result = subprocess.run(["curl", "-fsSL", "-o", dest, url], capture_output=True)
+    if result.returncode == 0:
+        return
+
+    raise RuntimeError(
+        f"Could not download {url}. Tried urllib, certifi, and curl. "
+        "Check your network connection and SSL certificates."
+    )
+
+
+print(f"Downloading {CEVAE_URL} ...")
+tmp_fd, tmp_path = tempfile.mkstemp(suffix=".csv")
+try:
+    os.close(tmp_fd)
+    _download(CEVAE_URL, tmp_path)
+    print(f"Downloaded to temporary file: {tmp_path}")
+
+    # --- Load and validate ---------------------------------------------------
+
+    cols = ["treatment", "y_factual", "y_cfactual", "mu0", "mu1"] + [f"x{i}" for i in range(1, 26)]
+    df = pd.read_csv(tmp_path, header=None, names=cols)
+finally:
+    if os.path.exists(tmp_path):
+        os.unlink(tmp_path)
+
+    print("Cleaned up temporary file.")
 
 print(f"Original shape: {df.shape}")
 assert df.shape == (747, 30), f"Expected (747, 30), got {df.shape}"
@@ -67,9 +137,10 @@ assert set(covariates["x14"].unique().tolist()) == {1, 2}, (
 )
 print("Columns x7-x25 confirmed binary (0/1), except x14 ('first') which is {1,2} by design.")
 
-covariates.to_csv(output_path, index=False)
-print(f"Saved {output_path}")
+covariates.to_csv(OUTPUT_PATH, index=False)
+print(f"Saved {OUTPUT_PATH}")
 
+# ---------------------------------------------------------------------------
 # Covariate identity reference (documentation only -- x1..x25 stay as the
 # actual column names; see rationale below the dict).
 #
