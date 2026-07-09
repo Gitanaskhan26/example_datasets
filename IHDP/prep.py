@@ -42,8 +42,7 @@ CEVAE_URL = (
 )
 OUTPUT_PATH = "ihdp_covariates.csv"
 
-# --- Download source file ---------------------------------------------------
-
+# Download source file
 
 def _download(url, dest):
     """Download ``url`` to ``dest``, working around common SSL issues."""
@@ -84,7 +83,7 @@ try:
     _download(CEVAE_URL, tmp_path)
     print(f"Downloaded to temporary file: {tmp_path}")
 
-    # --- Load and validate ---------------------------------------------------
+    # Load and validate
 
     cols = ["treatment", "y_factual", "y_cfactual", "mu0", "mu1"] + [f"x{i}" for i in range(1, 26)]
     df = pd.read_csv(tmp_path, header=None, names=cols)
@@ -140,7 +139,6 @@ print("Columns x7-x25 confirmed binary (0/1), except x14 ('first') which is {1,2
 covariates.to_csv(OUTPUT_PATH, index=False)
 print(f"Saved {OUTPUT_PATH}")
 
-# ---------------------------------------------------------------------------
 # Covariate identity reference (documentation only -- x1..x25 stay as the
 # actual column names; see rationale below the dict).
 #
@@ -170,6 +168,7 @@ print(f"Saved {OUTPUT_PATH}")
 # covariates as x1-x25, and IHDPDataset's DAG/test/cross-validation code
 # is built around that convention. This dict is for anyone who needs to
 # know what a given xN actually is.
+
 COVARIATE_INFO = {
     "x1": ("bw", "continuous", "Birth weight (grams)"),
     "x2": ("b.head", "continuous", "Head circumference at birth"),
